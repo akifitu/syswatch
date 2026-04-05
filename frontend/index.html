@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SysWatch — Gerçek zamanlı altyapı izleme ve sistem sağlığı dashboard'u. CPU, RAM, Disk, Network takibi ve akıllı uyarı sistemi." />
+  <meta name="keywords" content="sistem mühendisliği, monitoring, observability, dashboard, CPU, RAM, infrastructure" />
+  <meta name="author" content="SysWatch" />
+  <title>SysWatch — Infrastructure Monitoring Dashboard</title>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ─── Header ──────────────────────────────────────────────────────────── -->
+<header class="header">
+  <div class="header-brand">
+    <div class="header-logo">📡</div>
+    <div>
+      <div class="header-title">SysWatch</div>
+      <div class="header-subtitle">INFRASTRUCTURE MONITORING</div>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <div class="connection-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Bağlanıyor...</span>
+    </div>
+    <div class="header-time" id="header-time">--:--:--</div>
+  </div>
+</header>
+
+<!-- ─── System Info Bar ──────────────────────────────────────────────────── -->
+<div class="sysinfo-bar">
+  <div class="sysinfo-item">
+    <span class="sysinfo-label">HOST:</span>
+    <span class="sysinfo-value" id="sysinfo-host">...</span>
+  </div>
+  <div class="sysinfo-item">
+    <span class="sysinfo-label">OS:</span>
+    <span class="sysinfo-value" id="sysinfo-os">...</span>
+  </div>
+  <div class="sysinfo-item">
+    <span class="sysinfo-label">ARCH:</span>
+    <span class="sysinfo-value" id="sysinfo-arch">...</span>
+  </div>
+  <div class="sysinfo-item">
+    <span class="sysinfo-label">CPU:</span>
+    <span class="sysinfo-value" id="sysinfo-cpu">...</span>
+  </div>
+  <div class="sysinfo-item">
+    <span class="sysinfo-label">GÜNCELLEME:</span>
+    <span class="sysinfo-value" style="color: var(--accent-green)">Her 2 saniyede</span>
+  </div>
+</div>
+
+<!-- ─── Dashboard ────────────────────────────────────────────────────────── -->
+<main class="dashboard">
+
+  <!-- Stat Cards Row -->
+  <div class="stats-row">
+
+    <!-- CPU -->
+    <div class="card stat-card" data-type="cpu">
+      <div class="stat-card-accent"></div>
+      <div class="stat-header">
+        <div class="stat-label">CPU Kullanımı</div>
+        <div class="stat-icon">⚡</div>
+      </div>
+      <div>
+        <span class="stat-value" id="stat-cpu-value" id="stat-cpu-value-el">0</span>
+        <span class="stat-unit">%</span>
+        <span id="cpu-temp-badge" style="font-size:11px; color: var(--text-muted); margin-left: 8px;"></span>
+      </div>
+      <div class="stat-sub" id="stat-cpu-sub">Kullanıcı: 0% | Sistem: 0%</div>
+      <div class="stat-progress">
+        <div class="stat-progress-fill" id="stat-cpu-progress" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- Memory -->
+    <div class="card stat-card" data-type="memory">
+      <div class="stat-card-accent"></div>
+      <div class="stat-header">
+        <div class="stat-label">RAM Kullanımı</div>
+        <div class="stat-icon">🧠</div>
+      </div>
+      <div>
+        <span class="stat-value" id="stat-mem-value">0</span>
+        <span class="stat-unit">%</span>
+      </div>
+      <div class="stat-sub" id="stat-mem-sub">0 GB / 0 GB</div>
+      <div class="stat-progress">
+        <div class="stat-progress-fill" id="stat-mem-progress" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- Disk -->
+    <div class="card stat-card" data-type="disk">
+      <div class="stat-card-accent"></div>
+      <div class="stat-header">
+        <div class="stat-label">Disk Kullanımı</div>
+        <div class="stat-icon">💾</div>
+      </div>
+      <div>
+        <span class="stat-value" id="stat-disk-value">0</span>
+        <span class="stat-unit">%</span>
+      </div>
+      <div class="stat-sub" id="stat-disk-sub">0 GB / 0 GB</div>
+      <div class="stat-progress">
+        <div class="stat-progress-fill" id="stat-disk-progress" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- Network -->
+    <div class="card stat-card" data-type="network">
+      <div class="stat-card-accent"></div>
+      <div class="stat-header">
+        <div class="stat-label">Ağ Trafiği</div>
+        <div class="stat-icon">🌐</div>
+      </div>
+      <div class="stat-sub speed-value" id="stat-net-rx" style="font-size:18px; color: var(--accent-green); margin-bottom: 4px">↓ 0 B/s</div>
+      <div class="stat-sub speed-value" id="stat-net-tx" style="font-size:18px; color: var(--accent-yellow)">↑ 0 B/s</div>
+      <div class="stat-progress" style="margin-top:12px">
+        <div class="stat-progress-fill" style="width: 100%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row 1: CPU + Memory -->
+  <div class="charts-row">
+
+    <!-- CPU Chart -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-title-icon">⚡</div>
+          CPU Kullanım Geçmişi
+        </div>
+        <span class="card-badge badge-live">● CANLI</span>
+      </div>
+      <div class="chart-container">
+        <canvas id="cpu-chart"></canvas>
+      </div>
+
+      <!-- CPU Cores -->
+      <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px;">CPU Çekirdekleri</div>
+        <div class="cpu-cores-grid" id="cpu-cores-container"></div>
+      </div>
+    </div>
+
+    <!-- Memory Chart -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-title-icon" style="background: rgba(139,92,246,0.15)">🧠</div>
+          RAM Kullanım Geçmişi
+        </div>
+        <span class="card-badge badge-live">● CANLI</span>
+      </div>
+      <div class="chart-container">
+        <canvas id="mem-chart"></canvas>
+      </div>
+
+      <!-- Disk List -->
+      <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px;">💾 Disk Dosya Sistemleri</div>
+        <div class="disk-list" id="disk-list">
+          <div style="color: var(--text-muted); font-size: 12px">Yükleniyor...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row 2: Network + Capacity -->
+  <div class="charts-row-full">
+
+    <!-- Network Chart -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-title-icon" style="background: rgba(16,185,129,0.15)">🌐</div>
+          Ağ Trafiği (B/s)
+        </div>
+        <div style="display:flex; gap:12px; font-size:11px; font-family: var(--font-mono)">
+          <span style="color: var(--accent-green)">▬ RX (İndirme)</span>
+          <span style="color: var(--accent-yellow)">▬ TX (Yükleme)</span>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="net-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Capacity Planning + Thresholds -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-title-icon" style="background: rgba(6,182,212,0.15)">🗺️</div>
+          Kapasite Planlaması
+        </div>
+        <span class="card-badge badge-info">Trend Analizi</span>
+      </div>
+
+      <div class="capacity-grid">
+        <div class="capacity-item">
+          <div class="capacity-title">💾 Disk Kullanım Trendi</div>
+          <div class="capacity-value" id="cap-disk-percent">--%</div>
+          <div class="trend-indicator" id="cap-disk-trend">→ Hesaplanıyor...</div>
+        </div>
+        <div class="capacity-item">
+          <div class="capacity-title">⏱️ Tahmini Dolma Süresi</div>
+          <div class="capacity-value" id="cap-disk-eta" style="font-size:18px">--</div>
+          <div class="trend-indicator trend-stable">Lineer Regresyon</div>
+        </div>
+      </div>
+
+      <!-- Threshold Editor -->
+      <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border)">
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;">🔔 Uyarı Eşikleri</div>
+        <form id="threshold-form">
+          <div class="threshold-grid">
+            <div class="threshold-item">
+              <label class="threshold-label">CPU Uyarı (%)</label>
+              <input type="number" class="threshold-input" id="th-cpu-warn" min="1" max="99" value="70" />
+            </div>
+            <div class="threshold-item">
+              <label class="threshold-label">CPU Kritik (%)</label>
+              <input type="number" class="threshold-input" id="th-cpu-crit" min="1" max="100" value="90" />
+            </div>
+            <div class="threshold-item">
+              <label class="threshold-label">RAM Uyarı (%)</label>
+              <input type="number" class="threshold-input" id="th-mem-warn" min="1" max="99" value="75" />
+            </div>
+            <div class="threshold-item">
+              <label class="threshold-label">RAM Kritik (%)</label>
+              <input type="number" class="threshold-input" id="th-mem-crit" min="1" max="100" value="90" />
+            </div>
+            <div class="threshold-item">
+              <label class="threshold-label">Disk Uyarı (%)</label>
+              <input type="number" class="threshold-input" id="th-disk-warn" min="1" max="99" value="80" />
+            </div>
+            <div class="threshold-item">
+              <label class="threshold-label">Disk Kritik (%)</label>
+              <input type="number" class="threshold-input" id="th-disk-crit" min="1" max="100" value="95" />
+            </div>
+          </div>
+          <button type="submit" class="apply-btn" id="apply-thresholds-btn">Eşikleri Uygula</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Row: Processes + (Alerts + Logs) -->
+  <div class="bottom-row">
+
+    <!-- Process Table -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-title-icon" style="background: rgba(245,158,11,0.15)">📋</div>
+          Süreç Yönetimi
+        </div>
+        <div style="display: flex; gap: 16px; font-size: 12px; font-family: var(--font-mono)">
+          <span>Toplam: <strong id="proc-total" style="color: var(--text-primary)">-</strong></span>
+          <span>Aktif: <strong id="proc-running" style="color: var(--accent-green)">-</strong></span>
+          <span>Uyku: <strong id="proc-sleeping" style="color: var(--text-muted)">-</strong></span>
+          <span>Blok: <strong id="proc-blocked" style="color: var(--accent-red)">-</strong></span>
+        </div>
+      </div>
+
+      <div class="process-controls">
+        <input
+          type="text"
+          class="search-input"
+          id="process-search"
+          placeholder="🔍 İsim, PID veya kullanıcı ara..."
+        />
+        <button class="sort-btn active" data-sort="cpu" id="sort-cpu-btn">CPU ↓</button>
+        <button class="sort-btn" data-sort="memory" id="sort-mem-btn">RAM ↓</button>
+      </div>
+
+      <div class="process-table-wrapper">
+        <table class="process-table">
+          <thead>
+            <tr>
+              <th>PID</th>
+              <th>Süreç Adı</th>
+              <th>CPU %</th>
+              <th>RAM %</th>
+              <th>RSS</th>
+              <th>Durum</th>
+              <th>Kullanıcı</th>
+            </tr>
+          </thead>
+          <tbody id="process-tbody">
+            <tr><td colspan="7" style="text-align:center; color: var(--text-muted); padding: 24px">Yükleniyor...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Right Column: Alerts + Log Stream -->
+    <div class="right-column">
+
+      <!-- Alerts Panel -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <div class="card-title-icon" style="background: rgba(239,68,68,0.15)">🔔</div>
+            Aktif Uyarılar
+          </div>
+          <span class="card-badge" id="alert-count-badge" style="display:none">0</span>
+        </div>
+
+        <div class="alert-list" id="alert-list">
+          <div class="no-alerts">
+            <div class="no-alerts-icon">⏳</div>
+            <div>Metrikler bekleniyor...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log Stream -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <div class="card-title-icon" style="background: rgba(6,182,212,0.15)">📜</div>
+            Sistem Log Akışı
+          </div>
+          <span class="card-badge badge-live">● CANLI</span>
+        </div>
+
+        <div class="log-stream" id="log-stream">
+          <div class="log-entry">
+            <span class="log-time">--:--:--</span>
+            <span class="log-level INFO">INFO</span>
+            <span class="log-service">[syswatch]</span>
+            <span class="log-msg">Dashboard başlatılıyor...</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Scripts -->
+<script src="js/websocket.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
