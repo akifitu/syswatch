@@ -130,18 +130,20 @@ function updateDiskList(filesystems) {
   if (!container) return;
 
   container.innerHTML = filesystems.map(fs => {
-    const usedGB = (fs.used / 1024 / 1024 / 1024).toFixed(1);
-    const totalGB = (fs.size / 1024 / 1024 / 1024).toFixed(1);
-    const cls = fs.use >= 95 ? 'critical' : fs.use >= 80 ? 'warning' : '';
+    const usedGB = (toFiniteNumber(fs.used) / 1024 / 1024 / 1024).toFixed(1);
+    const totalGB = (toFiniteNumber(fs.size) / 1024 / 1024 / 1024).toFixed(1);
+    const usage = clampPercent(fs.use);
+    const cls = usage >= 95 ? 'critical' : usage >= 80 ? 'warning' : '';
+    const mount = escapeHTML(fs.mount || fs.fs || '-');
 
     return `
       <div class="disk-item">
         <div class="disk-path">
-          <span class="disk-mount">${fs.mount || fs.fs}</span>
-          <span class="disk-stats">${usedGB}/${totalGB} GB · ${fs.use.toFixed(1)}%</span>
+          <span class="disk-mount">${mount}</span>
+          <span class="disk-stats">${usedGB}/${totalGB} GB · ${usage.toFixed(1)}%</span>
         </div>
         <div class="disk-progress">
-          <div class="disk-progress-fill ${cls}" style="width: ${fs.use}%"></div>
+          <div class="disk-progress-fill ${cls}" style="width: ${usage}%"></div>
         </div>
       </div>
     `;
@@ -166,19 +168,24 @@ function updateAlerts(alerts) {
     return;
   }
 
-  container.innerHTML = alerts.map(alert => `
-    <div class="alert-item ${alert.level}">
-      <div class="alert-icon">${alertIcon(alert.level)}</div>
+  container.innerHTML = alerts.map(alert => {
+    const level = normalizeAlertLevel(alert.level);
+    const message = escapeHTML(alert.message || '-');
+    const time = escapeHTML(formatTime(alert.timestamp));
+    return `
+    <div class="alert-item ${level}">
+      <div class="alert-icon">${alertIcon(level)}</div>
       <div class="alert-content">
-        <div class="alert-level">${alert.level}</div>
-        <div class="alert-msg">${alert.message}</div>
-        <div class="alert-time">${formatTime(alert.timestamp)}</div>
+        <div class="alert-level">${level}</div>
+        <div class="alert-msg">${message}</div>
+        <div class="alert-time">${time}</div>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   // Kritik uyarılar için toast
-  const critical = alerts.filter(a => a.level === 'CRITICAL');
+  const critical = alerts.filter(a => normalizeAlertLevel(a.level) === 'CRITICAL');
   if (critical.length > 0 && critical.length > (state.prevCriticalCount || 0)) {
     showToast(`🚨 ${critical[0].message}`, 'critical');
   }
@@ -222,27 +229,38 @@ function renderProcessTable() {
     );
   }
 
-  tbody.innerHTML = procs.map(p => `
+  tbody.innerHTML = procs.map(p => {
+    const pid = escapeHTML(String(p.pid ?? '-'));
+    const command = escapeHTML(p.command || '');
+    const name = escapeHTML(p.name || '-');
+    const cpu = clampPercent(p.cpu);
+    const memory = clampPercent(p.memory);
+    const memRSS = formatBytes(toFiniteNumber(p.memRSS));
+    const stateText = escapeHTML(String(p.state || 'sleeping'));
+    const stateClass = normalizeProcessState(p.state);
+    const user = escapeHTML(p.user || '-');
+    return `
     <tr>
-      <td style="color: var(--text-muted)">${p.pid}</td>
-      <td class="process-name" title="${p.command}">${p.name}</td>
+      <td style="color: var(--text-muted)">${pid}</td>
+      <td class="process-name" title="${command}">${name}</td>
       <td>
         <div class="cpu-bar-cell">
-          <div class="mini-bar"><div class="mini-bar-fill cpu" style="width: ${Math.min(p.cpu, 100)}%"></div></div>
-          <span>${p.cpu.toFixed(1)}%</span>
+          <div class="mini-bar"><div class="mini-bar-fill cpu" style="width: ${cpu}%"></div></div>
+          <span>${cpu.toFixed(1)}%</span>
         </div>
       </td>
       <td>
         <div class="cpu-bar-cell">
-          <div class="mini-bar"><div class="mini-bar-fill mem" style="width: ${Math.min(p.memory, 100)}%"></div></div>
-          <span>${p.memory.toFixed(1)}%</span>
+          <div class="mini-bar"><div class="mini-bar-fill mem" style="width: ${memory}%"></div></div>
+          <span>${memory.toFixed(1)}%</span>
         </div>
       </td>
-      <td>${formatBytes(p.memRSS)}</td>
-      <td><span class="state-badge ${p.state === 'running' ? 'state-running' : 'state-sleeping'}">${p.state}</span></td>
-      <td style="color: var(--text-muted)">${p.user}</td>
+      <td>${memRSS}</td>
+      <td><span class="state-badge state-${stateClass}">${stateText}</span></td>
+      <td style="color: var(--text-muted)">${user}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 }
 
 // ─── UI: Logs ──────────────────────────────────────────────────────────────────
@@ -254,14 +272,26 @@ function addLogEntry(log) {
   if (!container) return;
 
   const time = formatTime(log.timestamp);
+  const level = normalizeLogLevel(log.level);
   const entry = document.createElement('div');
   entry.className = 'log-entry';
-  entry.innerHTML = `
-    <span class="log-time">${time}</span>
-    <span class="log-level ${log.level}">${log.level}</span>
-    <span class="log-service">[${log.service}]</span>
-    <span class="log-msg">${log.message}</span>
-  `;
+  const timeEl = document.createElement('span');
+  timeEl.className = 'log-time';
+  timeEl.textContent = time;
+
+  const levelEl = document.createElement('span');
+  levelEl.className = `log-level ${level}`;
+  levelEl.textContent = level;
+
+  const serviceEl = document.createElement('span');
+  serviceEl.className = 'log-service';
+  serviceEl.textContent = `[${String(log.service || '-')}]`;
+
+  const msgEl = document.createElement('span');
+  msgEl.className = 'log-msg';
+  msgEl.textContent = String(log.message || '');
+
+  entry.append(timeEl, levelEl, serviceEl, msgEl);
 
   container.insertBefore(entry, container.firstChild);
 
@@ -410,7 +440,11 @@ function showToast(message, type = 'info') {
   const icons = { critical: '🚨', warning: '⚠️', info: 'ℹ️' };
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.innerHTML = `<span>${icons[type]}</span><span>${message}</span>`;
+  const iconEl = document.createElement('span');
+  iconEl.textContent = icons[type] || icons.info;
+  const messageEl = document.createElement('span');
+  messageEl.textContent = message;
+  toast.append(iconEl, messageEl);
   container.appendChild(toast);
 
   setTimeout(() => {
@@ -460,6 +494,39 @@ function setColorByValue(id, value, warnThresh, critThresh, normal, warn, crit) 
   if (value >= critThresh) el.style.color = crit;
   else if (value >= warnThresh) el.style.color = warn;
   else el.style.color = normal;
+}
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+}
+
+function toFiniteNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clampPercent(value) {
+  return Math.min(Math.max(toFiniteNumber(value), 0), 100);
+}
+
+function normalizeAlertLevel(value) {
+  const level = String(value ?? '').toUpperCase();
+  return ['CRITICAL', 'WARNING', 'INFO'].includes(level) ? level : 'INFO';
+}
+
+function normalizeLogLevel(value) {
+  const level = String(value ?? '').toUpperCase();
+  return ['INFO', 'WARN', 'ERROR'].includes(level) ? level : 'INFO';
+}
+
+function normalizeProcessState(value) {
+  return String(value ?? '').toLowerCase() === 'running' ? 'running' : 'sleeping';
 }
 
 function formatTime(isoString) {

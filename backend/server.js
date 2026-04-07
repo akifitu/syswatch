@@ -20,9 +20,29 @@ const wss = new WebSocket.Server({ server });
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = process.env.PORT || 3000;
 const METRICS_INTERVAL = 2000; // 2 saniyede bir güncelle
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+function originPort(parsedUrl) {
+  if (parsedUrl.port) return parsedUrl.port;
+  return parsedUrl.protocol === 'https:' ? '443' : '80';
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  try {
+    const parsed = new URL(origin);
+    return LOOPBACK_HOSTS.has(parsed.hostname) && originPort(parsed) === String(PORT);
+  } catch (err) {
+    return false;
+  }
+}
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
-app.use(cors());
+app.use(cors({
+  origin(origin, callback) {
+    callback(null, isAllowedOrigin(origin));
+  }
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 
@@ -107,6 +127,10 @@ app.put('/api/alerts/thresholds', (req, res) => {
 const clients = new Set();
 
 wss.on('connection', (ws, req) => {
+  if (!isAllowedOrigin(req.headers.origin)) {
+    ws.close(1008, 'Origin not allowed');
+    return;
+  }
   clients.add(ws);
   console.log(`[WS] Yeni bağlantı. Toplam: ${clients.size}`);
 
