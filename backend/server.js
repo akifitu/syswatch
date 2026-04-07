@@ -17,6 +17,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
+const HOST = process.env.HOST || '127.0.0.1';
 const PORT = process.env.PORT || 3000;
 const METRICS_INTERVAL = 2000; // 2 saniyede bir güncelle
 
@@ -279,14 +280,14 @@ metricsLoop();
 processLoop();
 
 // ─── Sunucuyu Başlat ──────────────────────────────────────────────────────────
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`
 ╔══════════════════════════════════════════════╗
 ║           SysWatch Monitoring System          ║
 ╠══════════════════════════════════════════════╣
-║  🌐 Dashboard : http://localhost:${PORT}          ║
-║  📡 WebSocket : ws://localhost:${PORT}            ║
-║  🔗 API       : http://localhost:${PORT}/api      ║
+║  🌐 Dashboard : http://${HOST}:${PORT}          ║
+║  📡 WebSocket : ws://${HOST}:${PORT}            ║
+║  🔗 API       : http://${HOST}:${PORT}/api      ║
 ╚══════════════════════════════════════════════╝
   `);
 });
